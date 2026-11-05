@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="lavenderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E8E4FA"/>
+      <stop offset="100%" stop-color="#C5BFEE"/>
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6EBD3A"/>
+      <stop offset="100%" stop-color="#4B8624"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="44" fill="#1C1C1E"/>
+  <rect x="24" y="24" width="144" height="144" rx="32" fill="url(#lavenderGrad)"/>
+  <text x="76" y="108" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="54" fill="#1C1C1E">₹</text>
+  <rect x="52" y="120" width="88" height="28" rx="14" fill="url(#greenGrad)"/>
+  <text x="72" y="139" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="14" fill="#FFFFFF">PAY</text>
+</svg>
+

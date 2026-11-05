@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="lavenderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E8E4FA"/>
+      <stop offset="100%" stop-color="#C5BFEE"/>
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6EBD3A"/>
+      <stop offset="100%" stop-color="#4B8624"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Full Bleed Background for Maskable Icon -->
+  <rect width="512" height="512" fill="#2A2740"/>
+  
+  <!-- Safe zone inner card -->
+  <rect x="100" y="100" width="312" height="312" rx="64" fill="url(#lavenderGrad)"/>
+
+  <!-- Rupee Symbol -->
+  <text x="216" y="270" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="120" fill="#1C1C1E">₹</text>
+
+  <!-- Green Pill Badge -->
+  <rect x="200" y="310" width="112" height="44" rx="22" fill="url(#greenGrad)"/>
+  <circle cx="225" cy="332" r="6" fill="#FFFFFF"/>
+  <path d="M242 336 L250 326 L258 332 L274 316" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
+
