@@ -122,11 +122,11 @@ export const App: React.FC = () => {
       fallbackTimer = setTimeout(() => setIsAuthChecking(false), 4000);
     }
 
-    getInitialSession().then(({ session }) => {
+    getInitialSession().then(async ({ session }) => {
       if (session) {
+        await syncUserSession(session);
         setIsAuthenticated(true);
         setCurrentUserEmail(session.user?.email || null);
-        syncUserSession(session);
         setIsAuthChecking(false);
       } else if (!hasOAuthCallback) {
         setIsAuthenticated(false);
@@ -136,18 +136,21 @@ export const App: React.FC = () => {
     });
 
     if (supabase) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (event === 'INITIAL_SESSION' && !session && hasOAuthCallback) {
           return;
         }
         if (fallbackTimer) clearTimeout(fallbackTimer);
-        setIsAuthenticated(Boolean(session));
-        setCurrentUserEmail(session?.user?.email || null);
         if (session) {
-          syncUserSession(session);
+          await syncUserSession(session);
           if (hasOAuthCallback) {
             window.history.replaceState({}, document.title, window.location.pathname);
           }
+          setIsAuthenticated(true);
+          setCurrentUserEmail(session.user?.email || null);
+        } else {
+          setIsAuthenticated(false);
+          setCurrentUserEmail(null);
         }
         setIsAuthChecking(false);
       });
