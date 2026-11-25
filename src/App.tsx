@@ -50,7 +50,8 @@ export const App: React.FC = () => {
   }, [settingsRows]);
 
   // Auth state
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
   // UI state
@@ -89,16 +90,31 @@ export const App: React.FC = () => {
 
   // Check Supabase Auth on Mount
   useEffect(() => {
-    getInitialSession().then(({ session, isOffline }) => {
-      setIsAuthenticated(Boolean(session) || isOffline);
-      setCurrentUserEmail(session?.user?.email || (isOffline ? 'Offline Field Agent' : null));
+    const syncGoogleProfileName = async (session: any) => {
+      const metaName =
+        session?.user?.user_metadata?.full_name ||
+        session?.user?.user_metadata?.name;
+      if (metaName) {
+        const current = await db.settings.get('userName');
+        if (!current || current.value === DEFAULT_SETTINGS.userName) {
+          await db.settings.put({ key: 'userName', value: String(metaName) });
+        }
+      }
+    };
+
+    getInitialSession().then(({ session }) => {
+      setIsAuthenticated(Boolean(session));
+      setCurrentUserEmail(session?.user?.email || null);
+      if (session) syncGoogleProfileName(session);
+      setIsAuthChecking(false);
     });
 
     if (supabase) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        const isOffline = localStorage.getItem('payment_tracker_offline_auth') === 'true';
-        setIsAuthenticated(Boolean(session) || isOffline);
-        setCurrentUserEmail(session?.user?.email || (isOffline ? 'Offline Field Agent' : null));
+        setIsAuthenticated(Boolean(session));
+        setCurrentUserEmail(session?.user?.email || null);
+        if (session) syncGoogleProfileName(session);
+        setIsAuthChecking(false);
       });
 
       return () => subscription.unsubscribe();
@@ -383,13 +399,13 @@ export const App: React.FC = () => {
       />
       </Suspense>
 
-      {/* Supabase Backend Authentication Modal (auth.users) */}
+      {/* Google Authentication Modal */}
       <AuthModal
-        isOpen={!isAuthenticated}
+        isOpen={!isAuthChecking && !isAuthenticated}
         onAuthenticated={() => {
           setIsAuthenticated(true);
-          getInitialSession().then(({ session, isOffline }) => {
-            setCurrentUserEmail(session?.user?.email || (isOffline ? 'Offline Field Agent' : null));
+          getInitialSession().then(({ session }) => {
+            setCurrentUserEmail(session?.user?.email || null);
           });
         }}
       />

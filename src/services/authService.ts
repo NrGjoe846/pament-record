@@ -15,7 +15,7 @@ const OFFLINE_AUTH_KEY = 'payment_tracker_offline_auth';
  */
 export async function signInWithGoogle(): Promise<{ error: string | null }> {
   if (!isSupabaseConfigured || !supabase) {
-    return { error: 'Cloud authentication is not configured. Use Offline Mode instead.' };
+    return { error: 'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in environment variables.' };
   }
 
   try {
