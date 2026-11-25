@@ -117,7 +117,17 @@ export async function getInitialSession(): Promise<{ session: Session | null; is
 
   try {
     const { data } = await supabase.auth.getSession();
-    return { session: data?.session || null, isOffline };
+    const session = data?.session || null;
+
+    if (session && navigator.onLine) {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user) {
+        await supabase.auth.signOut();
+        return { session: null, isOffline: false };
+      }
+    }
+
+    return { session, isOffline };
   } catch {
     return { session: null, isOffline: true };
   }
