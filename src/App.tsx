@@ -90,13 +90,24 @@ export const App: React.FC = () => {
 
   // Check Supabase Auth on Mount
   useEffect(() => {
-    const syncGoogleProfileName = async (session: any) => {
+    const syncUserSession = async (session: any) => {
+      const userId = session?.user?.id;
+      if (userId) {
+        const prevUserId = localStorage.getItem('payment_tracker_user_id');
+        if (prevUserId && prevUserId !== userId) {
+          await db.payments.clear();
+          await db.members.clear();
+          await db.settings.clear();
+        }
+        localStorage.setItem('payment_tracker_user_id', userId);
+      }
+
       const metaName =
         session?.user?.user_metadata?.full_name ||
         session?.user?.user_metadata?.name;
       if (metaName) {
         const current = await db.settings.get('userName');
-        if (!current || current.value === DEFAULT_SETTINGS.userName) {
+        if (!current || current.value === 'Ben' || current.value === DEFAULT_SETTINGS.userName) {
           await db.settings.put({ key: 'userName', value: String(metaName) });
         }
       }
@@ -115,7 +126,7 @@ export const App: React.FC = () => {
       if (session) {
         setIsAuthenticated(true);
         setCurrentUserEmail(session.user?.email || null);
-        syncGoogleProfileName(session);
+        syncUserSession(session);
         setIsAuthChecking(false);
       } else if (!hasOAuthCallback) {
         setIsAuthenticated(false);
@@ -133,7 +144,7 @@ export const App: React.FC = () => {
         setIsAuthenticated(Boolean(session));
         setCurrentUserEmail(session?.user?.email || null);
         if (session) {
-          syncGoogleProfileName(session);
+          syncUserSession(session);
           if (hasOAuthCallback) {
             window.history.replaceState({}, document.title, window.location.pathname);
           }
@@ -254,6 +265,10 @@ export const App: React.FC = () => {
 
   const handleSignOut = async () => {
     await signOutSupabase();
+    await db.payments.clear();
+    await db.members.clear();
+    await db.settings.clear();
+    localStorage.removeItem('payment_tracker_user_id');
     setIsAuthenticated(false);
     setCurrentUserEmail(null);
     setIsSettingsModalOpen(false);
