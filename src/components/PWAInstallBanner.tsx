@@ -75,9 +75,11 @@ export const PWAInstallBanner: React.FC = () => {
       ) : showInstall ? (
         <div className="bg-white/95 backdrop-blur-md text-neutral-900 p-3.5 rounded-2xl shadow-lg flex items-center justify-between gap-3 border border-neutral-200/80">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-full bg-neutral-100 text-neutral-900 flex items-center justify-center font-bold text-sm shrink-0">
-              ₹
-            </div>
+            <img
+              src="/favicon.svg"
+              alt="PayTracker"
+              className="w-9 h-9 rounded-xl shrink-0"
+            />
             <div className="min-w-0">
               <p className="text-xs font-semibold text-neutral-900 leading-tight">Install PayTracker</p>
               <p className="text-[11px] text-neutral-500 truncate">Add to home screen for quick access</p>

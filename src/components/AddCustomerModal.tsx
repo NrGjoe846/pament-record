@@ -438,38 +438,11 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
 
           {/* Customer Name */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="font-semibold text-neutral-700">
-                {t(lang, 'customerNameReq')}
-              </label>
-              <button
-                type="button"
-                onClick={() => (isRecording && activeVoiceField === 'name' ? stopVoiceRecord() : startVoiceRecord('name'))}
-                title={t(lang, 'speakName')}
-                className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition cursor-pointer ${
-                  isRecording && activeVoiceField === 'name'
-                    ? 'bg-rose-500 text-white border-rose-500 animate-pulse'
-                    : isAiTyping && activeVoiceField === 'name'
-                    ? 'bg-neutral-900 text-white border-neutral-900'
-                    : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50'
-                }`}
-              >
-                {isAiTyping && activeVoiceField === 'name' ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <Mic className="w-3 h-3" />
-                )}
-                <span>
-                  {isRecording && activeVoiceField === 'name'
-                    ? t(lang, 'listeningShort')
-                    : isAiTyping && activeVoiceField === 'name'
-                    ? t(lang, 'fillingShort')
-                    : t(lang, 'speakName')}
-                </span>
-              </button>
-            </div>
+            <label className="block font-semibold text-neutral-700 mb-1.5">
+              {t(lang, 'customerNameReq')}
+            </label>
             <div className="relative">
-              <User className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" />
+              <User className="w-4 h-4 absolute left-3 top-3 text-neutral-400" />
               <input
                 type="text"
                 placeholder="e.g. Ramesh Kumar / கார்த்திக்"
@@ -478,45 +451,37 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
                   setName(e.target.value);
                   setError(null);
                 }}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-neutral-200 font-medium text-xs text-neutral-900 placeholder:text-neutral-400 focus:outline-hidden focus:border-neutral-900 transition"
+                className="w-full pl-9 pr-11 py-2.5 rounded-xl bg-white border border-neutral-200 font-medium text-xs text-neutral-900 placeholder:text-neutral-400 focus:outline-hidden focus:border-neutral-900 transition"
               />
+              <button
+                type="button"
+                onClick={() => (isRecording && activeVoiceField === 'name' ? stopVoiceRecord() : startVoiceRecord('name'))}
+                title={t(lang, 'speakName')}
+                aria-label={t(lang, 'speakName')}
+                className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer ${
+                  isRecording && activeVoiceField === 'name'
+                    ? 'bg-rose-500 text-white animate-pulse'
+                    : isAiTyping && activeVoiceField === 'name'
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-[#D9D4F2]/50 hover:bg-[#D9D4F2] text-neutral-800'
+                }`}
+              >
+                {isAiTyping && activeVoiceField === 'name' ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Mic className="w-3.5 h-3.5" />
+                )}
+              </button>
             </div>
           </div>
 
           {/* Phone Number */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="font-semibold text-neutral-700">
-                {t(lang, 'phoneNumberReq')}
-              </label>
-              <button
-                type="button"
-                onClick={() => (isRecording && activeVoiceField === 'phone' ? stopVoiceRecord() : startVoiceRecord('phone'))}
-                title={t(lang, 'speakPhone')}
-                className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition cursor-pointer ${
-                  isRecording && activeVoiceField === 'phone'
-                    ? 'bg-rose-500 text-white border-rose-500 animate-pulse'
-                    : isAiTyping && activeVoiceField === 'phone'
-                    ? 'bg-neutral-900 text-white border-neutral-900'
-                    : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50'
-                }`}
-              >
-                {isAiTyping && activeVoiceField === 'phone' ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <Mic className="w-3 h-3" />
-                )}
-                <span>
-                  {isRecording && activeVoiceField === 'phone'
-                    ? t(lang, 'listeningShort')
-                    : isAiTyping && activeVoiceField === 'phone'
-                    ? t(lang, 'fillingShort')
-                    : t(lang, 'speakPhone')}
-                </span>
-              </button>
-            </div>
+            <label className="block font-semibold text-neutral-700 mb-1.5">
+              {t(lang, 'phoneNumberReq')}
+            </label>
             <div className="relative">
-              <Phone className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" />
+              <Phone className="w-4 h-4 absolute left-3 top-3 text-neutral-400" />
               <input
                 type="text"
                 placeholder="e.g. +91 98765 43210"
@@ -525,52 +490,63 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
                   setPhone(e.target.value);
                   setError(null);
                 }}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-neutral-200 font-medium text-xs text-neutral-900 placeholder:text-neutral-400 focus:outline-hidden focus:border-neutral-900 transition"
+                className="w-full pl-9 pr-11 py-2.5 rounded-xl bg-white border border-neutral-200 font-medium text-xs text-neutral-900 placeholder:text-neutral-400 focus:outline-hidden focus:border-neutral-900 transition"
               />
+              <button
+                type="button"
+                onClick={() => (isRecording && activeVoiceField === 'phone' ? stopVoiceRecord() : startVoiceRecord('phone'))}
+                title={t(lang, 'speakPhone')}
+                aria-label={t(lang, 'speakPhone')}
+                className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer ${
+                  isRecording && activeVoiceField === 'phone'
+                    ? 'bg-rose-500 text-white animate-pulse'
+                    : isAiTyping && activeVoiceField === 'phone'
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-[#D9D4F2]/50 hover:bg-[#D9D4F2] text-neutral-800'
+                }`}
+              >
+                {isAiTyping && activeVoiceField === 'phone' ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Mic className="w-3.5 h-3.5" />
+                )}
+              </button>
             </div>
           </div>
 
           {/* Home Address / Area */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="font-semibold text-neutral-700">
-                {t(lang, 'homeAddressReq')}
-              </label>
-              <button
-                type="button"
-                onClick={() => (isRecording && activeVoiceField === 'homeAddress' ? stopVoiceRecord() : startVoiceRecord('homeAddress'))}
-                title={t(lang, 'speakArea')}
-                className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition cursor-pointer ${
-                  isRecording && activeVoiceField === 'homeAddress'
-                    ? 'bg-rose-500 text-white border-rose-500 animate-pulse'
-                    : isAiTyping && activeVoiceField === 'homeAddress'
-                    ? 'bg-neutral-900 text-white border-neutral-900'
-                    : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50'
-                }`}
-              >
-                {isAiTyping && activeVoiceField === 'homeAddress' ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <Mic className="w-3 h-3" />
-                )}
-                <span>
-                  {isRecording && activeVoiceField === 'homeAddress'
-                    ? t(lang, 'listeningShort')
-                    : isAiTyping && activeVoiceField === 'homeAddress'
-                    ? t(lang, 'fillingShort')
-                    : t(lang, 'speakArea')}
-                </span>
-              </button>
-            </div>
+            <label className="block font-semibold text-neutral-700 mb-1.5">
+              {t(lang, 'homeAddressReq')}
+            </label>
             <div className="relative">
-              <MapPin className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" />
+              <MapPin className="w-4 h-4 absolute left-3 top-3 text-neutral-400" />
               <textarea
                 rows={2}
                 placeholder="Door No, Street Name, Area, City"
                 value={homeAddress}
                 onChange={(e) => setHomeAddress(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-neutral-200 font-medium text-xs text-neutral-900 placeholder:text-neutral-400 focus:outline-hidden focus:border-neutral-900 transition"
+                className="w-full pl-9 pr-11 py-2.5 rounded-xl bg-white border border-neutral-200 font-medium text-xs text-neutral-900 placeholder:text-neutral-400 focus:outline-hidden focus:border-neutral-900 transition"
               />
+              <button
+                type="button"
+                onClick={() => (isRecording && activeVoiceField === 'homeAddress' ? stopVoiceRecord() : startVoiceRecord('homeAddress'))}
+                title={t(lang, 'speakArea')}
+                aria-label={t(lang, 'speakArea')}
+                className={`absolute right-1.5 top-2.5 w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer ${
+                  isRecording && activeVoiceField === 'homeAddress'
+                    ? 'bg-rose-500 text-white animate-pulse'
+                    : isAiTyping && activeVoiceField === 'homeAddress'
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-[#D9D4F2]/50 hover:bg-[#D9D4F2] text-neutral-800'
+                }`}
+              >
+                {isAiTyping && activeVoiceField === 'homeAddress' ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Mic className="w-3.5 h-3.5" />
+                )}
+              </button>
             </div>
           </div>
 

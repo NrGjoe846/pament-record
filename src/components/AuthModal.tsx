@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { signInWithGoogle } from '../services/authService';
-import { ShieldCheck, AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -40,11 +40,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#F5F4FA] text-neutral-900 overscroll-none">
       <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-xl border border-neutral-200/80 animate-in zoom-in-95 duration-200">
         
-        {/* Top Logo / Shield */}
+        {/* Top Logo */}
         <div className="flex flex-col items-center text-center">
-          <div className="w-14 h-14 rounded-2xl bg-[#D9D4F2] text-neutral-900 flex items-center justify-center mb-3.5">
-            <ShieldCheck className="w-7 h-7 stroke-[2.2]" />
-          </div>
+          <img
+            src="/favicon.svg"
+            alt="PayTracker"
+            className="w-16 h-16 rounded-2xl shadow-xs mb-3.5"
+          />
 
           <h1 className="text-xl font-bold tracking-tight text-neutral-900">
             Payment Tracker
