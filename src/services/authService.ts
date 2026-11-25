@@ -122,7 +122,7 @@ export async function getInitialSession(): Promise<{ session: Session | null; is
     if (session && navigator.onLine) {
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData?.user) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'local' });
         return { session: null, isOffline: false };
       }
     }

@@ -137,7 +137,7 @@ export const App: React.FC = () => {
 
     if (supabase) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'INITIAL_SESSION' && !session && hasOAuthCallback) {
+        if (event === 'INITIAL_SESSION') {
           return;
         }
         if (fallbackTimer) clearTimeout(fallbackTimer);
