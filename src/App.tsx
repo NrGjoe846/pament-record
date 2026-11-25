@@ -102,27 +102,51 @@ export const App: React.FC = () => {
       }
     };
 
+    const hasOAuthCallback =
+      window.location.search.includes('code=') ||
+      window.location.hash.includes('access_token=');
+
+    let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+    if (hasOAuthCallback) {
+      fallbackTimer = setTimeout(() => setIsAuthChecking(false), 4000);
+    }
+
     getInitialSession().then(({ session }) => {
-      setIsAuthenticated(Boolean(session));
-      setCurrentUserEmail(session?.user?.email || null);
-      if (session) syncGoogleProfileName(session);
-      setIsAuthChecking(false);
+      if (session) {
+        setIsAuthenticated(true);
+        setCurrentUserEmail(session.user?.email || null);
+        syncGoogleProfileName(session);
+        setIsAuthChecking(false);
+      } else if (!hasOAuthCallback) {
+        setIsAuthenticated(false);
+        setCurrentUserEmail(null);
+        setIsAuthChecking(false);
+      }
     });
 
     if (supabase) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (fallbackTimer) clearTimeout(fallbackTimer);
         setIsAuthenticated(Boolean(session));
         setCurrentUserEmail(session?.user?.email || null);
         if (session) syncGoogleProfileName(session);
         setIsAuthChecking(false);
       });
 
-      return () => subscription.unsubscribe();
+      return () => {
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        subscription.unsubscribe();
+      };
     }
+
+    return () => {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+    };
   }, []);
 
-  // Initialize DB and sync with Supabase backend on mount
+  // Initialize DB and sync with Supabase backend once authenticated
   useEffect(() => {
+    if (!isAuthenticated) return;
     let isCancelled = false;
     let unsubscribe: (() => void) | undefined;
 
@@ -154,7 +178,7 @@ export const App: React.FC = () => {
       isCancelled = true;
       if (unsubscribe) unsubscribe();
     };
-  }, []);
+  }, [isAuthenticated]);
 
   // Filter payments based on selected time filter (Day / Month / Year)
   const filteredPayments = useMemo(() => {
@@ -275,6 +299,28 @@ export const App: React.FC = () => {
     });
     setIsAddModalOpen(true);
   };
+
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-[#F5F4FA] flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-neutral-300 border-t-neutral-900 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <AuthModal
+        isOpen={true}
+        onAuthenticated={() => {
+          setIsAuthenticated(true);
+          getInitialSession().then(({ session }) => {
+            setCurrentUserEmail(session?.user?.email || null);
+          });
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F5F4FA] text-neutral-900 flex flex-col justify-between transition-colors duration-300">
