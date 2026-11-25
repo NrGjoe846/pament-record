@@ -47,6 +47,16 @@ export async function checkSupabaseHealth(): Promise<{ isConnected: boolean; lat
   }
 }
 
+async function getCurrentUserId(): Promise<string | null> {
+  if (!isSupabaseConfigured || !supabase) return null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data?.user?.id || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Saves a customer to local Dexie and syncs to Supabase.
  */
@@ -58,10 +68,14 @@ export async function saveCustomerToSupabase(customer: Omit<Customer, 'id'>): Pr
   // 2. Sync to Supabase if configured
   if (isSupabaseConfigured && supabase) {
     try {
+      const userId = await getCurrentUserId();
+      if (!userId) return savedCustomer;
+
       const dbDate = formatDateForDb(customer.endingMonth);
       const { data, error } = await supabase
         .from('members')
         .insert({
+          user_id: userId,
           name: customer.name.trim(),
           phone: customer.phone.trim(),
           home_address: customer.homeAddress || 'Not specified',
@@ -109,22 +123,27 @@ export async function savePaymentToSupabase(payment: Omit<Payment, 'id'>): Promi
   // 3. Sync to Supabase if configured
   if (isSupabaseConfigured && supabase) {
     try {
-      // Find matching member in Supabase
+      const userId = await getCurrentUserId();
+      if (!userId) return paymentId;
+
+      // Find matching member for this user in Supabase
       let { data: memberData } = await supabase
         .from('members')
         .select('id')
+        .eq('user_id', userId)
         .ilike('name', payment.name.trim())
         .limit(1)
         .maybeSingle();
 
       let memberId = memberData?.id;
 
-      // If customer does not exist in Supabase yet, auto-create them so foreign key never fails
+      // If customer does not exist in Supabase yet, auto-create them for this user
       if (!memberId) {
         const dbDate = formatDateForDb(matched?.endingMonth);
         const { data: newMember, error: createErr } = await supabase
           .from('members')
           .insert({
+            user_id: userId,
             name: payment.name.trim(),
             phone: matched?.phone || '+91 98000 00000',
             home_address: matched?.homeAddress || 'Local Customer',
@@ -147,6 +166,7 @@ export async function savePaymentToSupabase(payment: Omit<Payment, 'id'>): Promi
       if (memberId) {
         const receiptNo = `RCT-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
         const { error: pErr } = await supabase.from('payments').insert({
+          user_id: userId,
           receipt_number: receiptNo,
           member_id: memberId,
           amount: payment.amount,
@@ -181,10 +201,16 @@ export async function syncFromSupabase(): Promise<{ membersSynced: number; payme
   let paymentsSynced = 0;
 
   try {
-    // 1. Fetch remote members
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return { membersSynced: 0, paymentsSynced: 0 };
+    }
+
+    // 1. Fetch remote members owned by this signed-in user
     const { data: remoteMembers, error: mErr } = await supabase
       .from('members')
       .select('*')
+      .eq('user_id', userId)
       .order('created_at', { ascending: true });
 
     if (!mErr && remoteMembers && remoteMembers.length > 0) {
@@ -212,10 +238,11 @@ export async function syncFromSupabase(): Promise<{ membersSynced: number; payme
       }
     }
 
-    // 2. Fetch remote payments with customer name
+    // 2. Fetch remote payments owned by this signed-in user
     const { data: remotePayments, error: pErr } = await supabase
       .from('payments')
       .select('id, receipt_number, amount, payment_date, notes, created_at, members(name)')
+      .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (!pErr && remotePayments && remotePayments.length > 0) {
