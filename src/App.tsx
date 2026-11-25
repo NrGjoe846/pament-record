@@ -1,18 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, seedInitialDataIfNeeded, DEFAULT_SETTINGS } from './db';
-import { Payment, Customer, TimeFilter, AppSettings } from './types';
+import { Payment, Customer, TimeFilter, AppSettings, AppLanguage } from './types';
 import { SummaryCard } from './components/SummaryCard';
 import { ActionRow } from './components/ActionRow';
 import { BottomSheet } from './components/BottomSheet';
-import { AddPaymentModal } from './components/AddPaymentModal';
-import { VoiceCommandModal } from './components/VoiceCommandModal';
-import { CustomersModal } from './components/CustomersModal';
-import { CustomerDetailModal } from './components/CustomerDetailModal';
-import { SettingsModal } from './components/SettingsModal';
-import { AddCustomerModal } from './components/AddCustomerModal';
 import { AuthModal } from './components/AuthModal';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
+
+const AddPaymentModal = lazy(() => import('./components/AddPaymentModal').then(m => ({ default: m.AddPaymentModal })));
+const VoiceCommandModal = lazy(() => import('./components/VoiceCommandModal').then(m => ({ default: m.VoiceCommandModal })));
+const CustomersModal = lazy(() => import('./components/CustomersModal').then(m => ({ default: m.CustomersModal })));
+const CustomerDetailModal = lazy(() => import('./components/CustomerDetailModal').then(m => ({ default: m.CustomerDetailModal })));
+const SettingsModal = lazy(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })));
+const AddCustomerModal = lazy(() => import('./components/AddCustomerModal').then(m => ({ default: m.AddCustomerModal })));
 import { 
   saveCustomerToSupabase, 
   savePaymentToSupabase, 
@@ -20,8 +21,9 @@ import {
   subscribeToSupabaseChanges, 
   checkSupabaseHealth 
 } from './services/supabaseService';
-import { getInitialSession, signOutSupabase } from './services/authService';
+import { getInitialSession, signOutSupabase, updateSupabaseUserName } from './services/authService';
 import { supabase } from './lib/supabase';
+import { getLocalDateString, parseLocalDate } from './utils/formatters';
 
 export const App: React.FC = () => {
   // 1. Database Queries
@@ -40,6 +42,7 @@ export const App: React.FC = () => {
       targetAmount: sMap.targetAmount !== undefined ? sMap.targetAmount : DEFAULT_SETTINGS.targetAmount,
       currency: sMap.currency || DEFAULT_SETTINGS.currency,
       voiceLang: sMap.voiceLang || DEFAULT_SETTINGS.voiceLang,
+      appLang: (sMap.appLang as AppLanguage) || DEFAULT_SETTINGS.appLang || 'en',
       theme: 'light',
       isPinProtected: false,
       appPin: '1234',
@@ -61,6 +64,29 @@ export const App: React.FC = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
+  // Lock background page scrolling whenever any modal/popup card is open
+  const isAnyModalOpen =
+    isAddModalOpen ||
+    isVoiceModalOpen ||
+    isCustomersModalOpen ||
+    isSettingsModalOpen ||
+    isAddCustomerOpen ||
+    Boolean(selectedCustomer) ||
+    !isAuthenticated;
+
+  useEffect(() => {
+    if (isAnyModalOpen) {
+      const prevBodyOverflow = document.body.style.overflow;
+      const prevHtmlOverflow = document.documentElement.style.overflow;
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevBodyOverflow;
+        document.documentElement.style.overflow = prevHtmlOverflow;
+      };
+    }
+  }, [isAnyModalOpen]);
+
   // Check Supabase Auth on Mount
   useEffect(() => {
     getInitialSession().then(({ session, isOffline }) => {
@@ -81,20 +107,24 @@ export const App: React.FC = () => {
 
   // Initialize DB and sync with Supabase backend on mount
   useEffect(() => {
+    let isCancelled = false;
     let unsubscribe: (() => void) | undefined;
 
     async function init() {
       // 1. Seed initial local offline database
       await seedInitialDataIfNeeded();
+      if (isCancelled) return;
 
       // 2. Check Supabase backend health
       const health = await checkSupabaseHealth();
+      if (isCancelled) return;
       setIsBackendConnected(health.isConnected);
 
       // 3. Bidirectional sync with Supabase
       if (health.isConnected) {
         await syncFromSupabase();
-        
+        if (isCancelled) return;
+
         // 4. Subscribe to live Supabase Postgres realtime events
         unsubscribe = subscribeToSupabaseChanges(() => {
           console.log('Realtime update received from Supabase');
@@ -105,6 +135,7 @@ export const App: React.FC = () => {
     init();
 
     return () => {
+      isCancelled = true;
       if (unsubscribe) unsubscribe();
     };
   }, []);
@@ -112,12 +143,12 @@ export const App: React.FC = () => {
   // Filter payments based on selected time filter (Day / Month / Year)
   const filteredPayments = useMemo(() => {
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = getLocalDateString(now);
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
     return allPayments.filter((p) => {
-      const pDate = new Date(p.date);
+      const pDate = parseLocalDate(p.date);
       if (timeFilter === 'day') {
         return p.date === todayStr;
       }
@@ -139,7 +170,7 @@ export const App: React.FC = () => {
 
     return allPayments
       .filter((p) => {
-        const pDate = new Date(p.date);
+        const pDate = parseLocalDate(p.date);
         return pDate.getMonth() === currentMonth && pDate.getFullYear() === currentYear;
       })
       .reduce((sum, p) => sum + p.amount, 0);
@@ -160,16 +191,17 @@ export const App: React.FC = () => {
     for (const [key, value] of Object.entries(newSettings)) {
       await db.settings.put({ key, value });
     }
+    if (newSettings.userName) {
+      await updateSupabaseUserName(newSettings.userName);
+    }
   };
 
   const handleResetData = async () => {
-    if (window.confirm('Reset all payments and restore initial customer data?')) {
-      await db.payments.clear();
-      await db.members.clear();
-      await db.settings.clear();
-      await seedInitialDataIfNeeded();
-      setIsSettingsModalOpen(false);
-    }
+    await db.payments.clear();
+    await db.members.clear();
+    await db.settings.clear();
+    await seedInitialDataIfNeeded();
+    setIsSettingsModalOpen(false);
   };
 
   const handleSignOut = async () => {
@@ -210,7 +242,7 @@ export const App: React.FC = () => {
       name: draft.name,
       amount: draft.amount,
       type: 'offline',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateString(),
       createdAt: Date.now()
     });
     setIsAddModalOpen(true);
@@ -221,7 +253,7 @@ export const App: React.FC = () => {
       name: customerName,
       amount: amount,
       type: 'offline',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateString(),
       note: 'Monthly cash installment',
       createdAt: Date.now()
     });
@@ -242,13 +274,15 @@ export const App: React.FC = () => {
             paidThisMonth={paidThisMonth}
             totalToPay={settings.targetAmount}
             currency={settings.currency}
+            lang={settings.appLang}
             onOpenSettings={() => setIsSettingsModalOpen(true)}
             onOpenAddCustomer={() => setIsAddCustomerOpen(true)}
             isBackendConnected={isBackendConnected}
           />
 
-          {/* Action Row: Record Cash | 🎤 Mic | 👥 Customers */}
+          {/* Action Row: Record Cash | Mic | Customers */}
           <ActionRow
+            lang={settings.appLang}
             onAddCash={handleOpenAdd}
             onOpenVoice={() => setIsVoiceModalOpen(true)}
             onOpenCustomers={() => setIsCustomersModalOpen(true)}
@@ -272,6 +306,7 @@ export const App: React.FC = () => {
           <BottomSheet
             payments={filteredPayments}
             currency={settings.currency}
+            lang={settings.appLang}
             timeFilter={timeFilter}
             onFilterChange={setTimeFilter}
             onDeletePayment={handleDeletePayment}
@@ -282,6 +317,7 @@ export const App: React.FC = () => {
       </main>
 
       {/* MODALS */}
+      <Suspense fallback={null}>
       <AddPaymentModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
@@ -297,8 +333,10 @@ export const App: React.FC = () => {
         onSavePayment={handleSavePayment}
         currency={settings.currency}
         defaultLang={settings.voiceLang}
+        appLang={settings.appLang}
         onOpenManualWithDraft={handleOpenManualWithDraft}
         recentNames={recentNames}
+        customers={allCustomers}
       />
 
       {/* Customers Management Modal (Replaced Daily Close) */}
@@ -306,7 +344,9 @@ export const App: React.FC = () => {
         isOpen={isCustomersModalOpen}
         onClose={() => setIsCustomersModalOpen(false)}
         customers={allCustomers}
+        payments={allPayments}
         currency={settings.currency}
+        lang={settings.appLang}
         onSelectCustomer={(c) => setSelectedCustomer(c)}
         onAddCustomer={handleAddCustomer}
         onOpenAddCustomerModal={() => setIsAddCustomerOpen(true)}
@@ -317,7 +357,9 @@ export const App: React.FC = () => {
         isOpen={Boolean(selectedCustomer)}
         onClose={() => setSelectedCustomer(null)}
         customer={selectedCustomer}
+        payments={allPayments}
         currency={settings.currency}
+        lang={settings.appLang}
         onRecordCashForCustomer={handleRecordCashForCustomer}
       />
 
@@ -337,7 +379,9 @@ export const App: React.FC = () => {
         onClose={() => setIsAddCustomerOpen(false)}
         onSaveCustomer={handleAddCustomer}
         currency={settings.currency}
+        lang={settings.appLang}
       />
+      </Suspense>
 
       {/* Supabase Backend Authentication Modal (auth.users) */}
       <AuthModal

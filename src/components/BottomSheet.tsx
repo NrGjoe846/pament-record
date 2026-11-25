@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Payment, TimeFilter } from '../types';
+import { AppLanguage, Payment, TimeFilter } from '../types';
 import { formatCurrencyParts, formatFriendlyDate, getAvatarColor, getInitials } from '../utils/formatters';
+import { t } from '../utils/i18n';
 import { Trash2, ChevronRight, ArrowUpDown, Banknote } from 'lucide-react';
 
 interface BottomSheetProps {
   payments: Payment[];
   currency: string;
+  lang?: AppLanguage;
   timeFilter: TimeFilter;
   onFilterChange: (filter: TimeFilter) => void;
   onDeletePayment: (id: number) => void;
@@ -15,6 +17,7 @@ interface BottomSheetProps {
 export const BottomSheet: React.FC<BottomSheetProps> = ({
   payments,
   currency,
+  lang = 'en',
   timeFilter,
   onFilterChange,
   onDeletePayment,
@@ -49,29 +52,29 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
       </div>
 
       {/* Header: Recently Added on left, Day/Month/Year filter on right (Clean layout, no customer tab) */}
-      <div className="px-5 pt-3 pb-3 flex items-center justify-between border-b border-neutral-100 dark:border-white/5">
-        <div>
-          <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
-            Recently Added
+      <div className="px-4 sm:px-5 pt-3 pb-3 flex items-center justify-between gap-2 border-b border-neutral-100 dark:border-white/5">
+        <div className="min-w-0">
+          <h2 className="text-sm sm:text-base font-bold text-neutral-900 dark:text-neutral-100 tracking-tight truncate">
+            {t(lang, 'recentlyAdded')}
           </h2>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">
-            {payments.length} {payments.length === 1 ? 'cash entry' : 'cash entries'}
+          <p className="text-[11px] sm:text-xs text-neutral-500 dark:text-neutral-400">
+            {payments.length} {payments.length === 1 ? t(lang, 'cashEntry') : t(lang, 'cashEntries')}
           </p>
         </div>
 
         {/* Day / Month / Year Filter Pills */}
-        <div className="flex items-center p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-xs">
+        <div className="flex items-center p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-xs shrink-0">
           {(['day', 'month', 'year'] as TimeFilter[]).map((f) => (
             <button
               key={f}
               onClick={() => onFilterChange(f)}
-              className={`px-3 py-1 rounded-lg font-semibold text-xs capitalize transition-all ${
+              className={`px-2.5 sm:px-3 py-1 rounded-lg font-semibold text-[11px] sm:text-xs transition-all ${
                 timeFilter === f
                   ? 'bg-white dark:bg-[#2C2C2E] text-neutral-900 dark:text-white shadow-xs font-bold'
                   : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
-              {f}
+              {t(lang, f)}
             </button>
           ))}
         </div>
@@ -82,8 +85,8 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
         {payments.length === 0 ? (
           <div className="py-14 text-center text-neutral-400 dark:text-neutral-500">
             <ArrowUpDown className="w-8 h-8 mx-auto mb-2 opacity-40" />
-            <p className="text-xs font-semibold">No cash collections recorded for this period</p>
-            <p className="text-[11px] text-neutral-400 mt-0.5">Use Record Cash or Voice command above</p>
+            <p className="text-xs font-semibold">{t(lang, 'noCollections')}</p>
+            <p className="text-[11px] text-neutral-400 mt-0.5">{t(lang, 'useRecordOrVoice')}</p>
           </div>
         ) : (
           payments.map((p) => {
@@ -113,13 +116,13 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
                 {/* Main Row Content */}
                 <div
                   onClick={() => onSelectPayment(p)}
-                  className={`relative z-10 bg-white dark:bg-[#1C1C1E] py-2.5 px-3 rounded-2xl flex items-center justify-between gap-3 cursor-pointer transition-transform duration-200 ${
+                  className={`relative z-10 bg-white dark:bg-[#1C1C1E] py-2.5 px-2 sm:px-3 rounded-2xl flex items-center justify-between gap-2.5 sm:gap-3 cursor-pointer transition-transform duration-200 ${
                     isSwiped ? '-translate-x-20' : 'translate-x-0'
                   } hover:bg-neutral-50 dark:hover:bg-neutral-800/40`}
                 >
                   {/* Left: Avatar Circle */}
                   <div
-                    className={`w-11 h-11 rounded-full ${avatarColor.bg} ${avatarColor.text} font-bold text-xs flex items-center justify-center shrink-0 shadow-xs`}
+                    className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${avatarColor.bg} ${avatarColor.text} font-bold text-xs flex items-center justify-center shrink-0 shadow-xs`}
                   >
                     {initials}
                   </div>

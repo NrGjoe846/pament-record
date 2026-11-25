@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
-import { Customer } from '../types';
-import { formatFullCurrency, getInitials, getAvatarColor } from '../utils/formatters';
-import { X, Plus, Search, Phone, MessageSquare, MapPin, Calendar, Users, ChevronRight, UserPlus } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { AppLanguage, Customer, Payment } from '../types';
+import { formatFullCurrency, formatFriendlyDate, getInitials, getAvatarColor, getLocalDateString, parseLocalDate } from '../utils/formatters';
+import { t } from '../utils/i18n';
+import { X, Search, Phone, MessageSquare, MapPin, Users, UserPlus, Clock, ChevronRight } from 'lucide-react';
 
 interface CustomersModalProps {
   isOpen: boolean;
   onClose: () => void;
   customers: Customer[];
+  payments?: Payment[];
   currency: string;
+  lang?: AppLanguage;
   onSelectCustomer: (customer: Customer) => void;
   onAddCustomer: (customer: Omit<Customer, 'id'>) => void;
   onOpenAddCustomerModal?: () => void;
@@ -17,12 +20,15 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
   isOpen,
   onClose,
   customers,
+  payments = [],
   currency,
+  lang = 'en',
   onSelectCustomer,
   onAddCustomer,
   onOpenAddCustomerModal,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending'>('all');
   const [isAdding, setIsAdding] = useState(false);
 
   // New Customer Form State
@@ -34,13 +40,64 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
   const [endingMonth, setEndingMonth] = useState('August 2027');
   const [formError, setFormError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  const paymentsByCustomer = useMemo(() => {
+    const map = new Map<string, Payment[]>();
+    for (const p of payments) {
+      const key = p.name.trim().toLowerCase();
+      if (!key) continue;
+      const list = map.get(key) || [];
+      list.push(p);
+      map.set(key, list);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    }
+    return map;
+  }, [payments]);
 
-  const filtered = customers.filter((c) =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.phone.includes(searchQuery) ||
-    c.homeAddress.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const customerEntries = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    return customers.map((c) => {
+      const customerPayments = paymentsByCustomer.get(c.name.trim().toLowerCase()) || [];
+      const lastPayment = customerPayments[0] || null;
+      const paidThisMonth = customerPayments
+        .filter((p) => {
+          const d = parseLocalDate(p.date);
+          return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+        })
+        .reduce((sum, p) => sum + p.amount, 0);
+
+      return {
+        customer: c,
+        customerPayments,
+        lastPayment,
+        paidThisMonth,
+        isPaidThisMonth: paidThisMonth > 0,
+      };
+    });
+  }, [customers, paymentsByCustomer]);
+
+  const paidCount = useMemo(() => customerEntries.filter((e) => e.isPaidThisMonth).length, [customerEntries]);
+  const pendingCount = customerEntries.length - paidCount;
+
+  const filtered = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return customerEntries.filter(({ customer: c, isPaidThisMonth }) => {
+      if (statusFilter === 'paid' && !isPaidThisMonth) return false;
+      if (statusFilter === 'pending' && isPaidThisMonth) return false;
+      if (!q) return true;
+      return (
+        c.name.toLowerCase().includes(q) ||
+        c.phone.includes(searchQuery) ||
+        c.homeAddress.toLowerCase().includes(q)
+      );
+    });
+  }, [customerEntries, searchQuery, statusFilter]);
+
+  if (!isOpen) return null;
 
   const handleCreateCustomer = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +121,7 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
       totalTarget: parsedTarget,
       totalPaid: 0,
       balanceDue: parsedTarget,
-      startDate: new Date().toISOString().split('T')[0],
+      startDate: getLocalDateString(),
       endingMonth: endingMonth.trim() || 'August 2027',
       status: 'active'
     });
@@ -78,19 +135,19 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="w-full max-w-lg bg-white dark:bg-[#1C1C1E] text-neutral-900 dark:text-white rounded-t-4xl sm:rounded-4xl p-5 shadow-2xl border border-black/5 dark:border-white/10 max-h-[92vh] flex flex-col animate-in slide-in-from-bottom duration-250">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-200 overscroll-none">
+      <div className="w-full max-w-lg bg-white text-neutral-900 rounded-t-3xl sm:rounded-3xl p-5 shadow-xl border border-neutral-200/80 h-[88vh] sm:h-[82vh] max-h-[92vh] flex flex-col animate-in slide-in-from-bottom duration-250 overscroll-contain">
         
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-white/10">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-2xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
-              <Users className="w-5 h-5" />
+        <div className="flex items-center justify-between pb-3.5 border-b border-neutral-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-neutral-100 text-neutral-700 flex items-center justify-center">
+              <Users className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold">Customer Directory</h2>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                {customers.length} registered members
+              <h2 className="text-base font-bold tracking-tight text-neutral-900">{t(lang, 'customerDirectory')}</h2>
+              <p className="text-[11px] text-neutral-500">
+                {customers.length} {t(lang, 'registeredMembers')}
               </p>
             </div>
           </div>
@@ -106,15 +163,15 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                   setFormError(null);
                 }
               }}
-              className="px-3.5 py-1.5 rounded-xl bg-neutral-900 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs tap-bounce transition cursor-pointer"
+              className="px-3.5 py-1.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold flex items-center gap-1.5 tap-bounce transition cursor-pointer"
             >
-              <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
-              <span>+ Add Customer</span>
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>{t(lang, 'addCustomer')}</span>
             </button>
 
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-500 hover:text-neutral-900 cursor-pointer"
+              className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200/80 flex items-center justify-center text-neutral-500 hover:text-neutral-900 transition cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -208,17 +265,38 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
           </form>
         )}
 
-        {/* Search Bar */}
-        <div className="pt-3 pb-2">
+        {/* Search Bar & Status Filter Tabs */}
+        <div className="pt-3.5 pb-2.5 space-y-2.5">
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" />
+            <Search className="w-4 h-4 absolute left-3.5 top-2.5 text-neutral-400" />
             <input
               type="text"
-              placeholder="Search by name, phone, or address..."
+              placeholder={t(lang, 'searchCustomers')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-transparent focus:border-neutral-300 dark:focus:border-neutral-600 text-xs font-medium focus:outline-hidden"
+              className="w-full pl-9 pr-4 py-2 rounded-full bg-neutral-50 border border-neutral-200 focus:border-neutral-400 focus:bg-white text-xs font-medium text-neutral-900 placeholder:text-neutral-400 focus:outline-hidden transition"
             />
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {([
+              { key: 'all', label: `All (${customers.length})` },
+              { key: 'paid', label: `${t(lang, 'paidLabel')} (${paidCount})` },
+              { key: 'pending', label: `${t(lang, 'pending')} (${pendingCount})` },
+            ] as const).map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setStatusFilter(tab.key)}
+                className={`px-3 py-1 rounded-full text-[11px] font-semibold transition cursor-pointer ${
+                  statusFilter === tab.key
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/70'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -226,10 +304,10 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
         <div className="flex-1 overflow-y-auto space-y-2.5 py-1">
           {filtered.length === 0 ? (
             <div className="py-12 text-center text-neutral-400 text-xs">
-              No customers found matching "{searchQuery}"
+              No customers found
             </div>
           ) : (
-            filtered.map((c) => {
+            filtered.map(({ customer: c, customerPayments, lastPayment, isPaidThisMonth }) => {
               const avatarColor = getAvatarColor(c.name);
               const initials = getInitials(c.name);
               const percent = c.totalTarget > 0 ? Math.min(100, Math.round((c.totalPaid / c.totalTarget) * 100)) : 0;
@@ -242,31 +320,43 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                     onSelectCustomer(c);
                     onClose();
                   }}
-                  className="bg-neutral-50/80 dark:bg-neutral-800/40 border border-neutral-200/60 dark:border-white/5 rounded-2xl p-3.5 space-y-2 hover:bg-neutral-100/80 dark:hover:bg-neutral-800/80 cursor-pointer transition tap-bounce shadow-2xs group"
+                  className="bg-white border border-neutral-200/80 rounded-2xl p-3.5 space-y-2.5 hover:border-neutral-300 hover:bg-neutral-50/40 cursor-pointer transition tap-bounce"
                 >
-                  {/* Top Bar: Avatar, Name, Phone & Quick Actions */}
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className={`w-10 h-10 rounded-full ${avatarColor.bg} ${avatarColor.text} font-bold text-xs flex items-center justify-center shrink-0`}>
-                        {initials}
+                  {/* Top Row: Avatar, Name + Status, Phone/Area, Quick Actions */}
+                  <div className="flex items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-10 h-10 rounded-full ${avatarColor.bg} ${avatarColor.text} font-bold text-xs flex items-center justify-center shrink-0 overflow-hidden`}>
+                        {c.profileImage ? (
+                          <img src={c.profileImage} alt={c.name} className="w-full h-full object-cover" />
+                        ) : (
+                          initials
+                        )}
                       </div>
-                      <div>
-                        <h3 className="font-bold text-sm text-neutral-900 dark:text-white leading-tight">
-                          {c.name}
-                        </h3>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1 mt-0.5 font-medium">
-                          <Phone className="w-3 h-3 text-neutral-400" />
-                          <span>{c.phone}</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-semibold text-sm text-neutral-900 leading-tight truncate">
+                            {c.name}
+                          </h3>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                            isPaidThisMonth
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200/80'
+                          }`}>
+                            {isPaidThisMonth ? t(lang, 'paidLabel') : t(lang, 'pending')}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-neutral-500 truncate mt-0.5">
+                          {c.phone}{c.homeAddress ? ` • ${c.homeAddress}` : ''}
                         </p>
                       </div>
                     </div>
 
                     {/* Quick Call & WhatsApp Chips */}
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                       <a
                         href={`tel:${cleanPhone}`}
-                        className="w-8 h-8 rounded-lg bg-white dark:bg-neutral-700 text-blue-500 flex items-center justify-center border border-black/5 hover:bg-neutral-100"
-                        title="Call"
+                        className="w-8 h-8 rounded-full bg-neutral-50 text-neutral-700 flex items-center justify-center border border-neutral-200 hover:bg-neutral-100 transition"
+                        title={t(lang, 'call')}
                       >
                         <Phone className="w-3.5 h-3.5" />
                       </a>
@@ -274,46 +364,54 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                         href={`https://wa.me/${cleanPhone}?text=Hello%20${encodeURIComponent(c.name)},%20your%20monthly%20chit%20due%20is%20pending.%20Total%20Balance:%20${encodeURIComponent(formatFullCurrency(c.balanceDue, currency))}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700"
-                        title="WhatsApp"
+                        className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center justify-center hover:bg-emerald-100 transition"
+                        title={t(lang, 'whatsapp')}
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
                       </a>
                     </div>
                   </div>
 
-                  {/* Address */}
-                  {c.homeAddress && (
-                    <div className="flex items-start gap-1.5 text-xs text-neutral-600 dark:text-neutral-300">
-                      <MapPin className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                      <span className="truncate">{c.homeAddress}</span>
+                  {/* Middle Row: Key Financial Snapshot (Balance vs Last Payment) */}
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-neutral-100 text-xs">
+                    <div>
+                      <span className="text-[10px] text-neutral-400 uppercase font-medium block">
+                        {t(lang, 'balance')}
+                      </span>
+                      <span className="font-bold text-neutral-900 text-sm">
+                        {formatFullCurrency(c.balanceDue, currency)}
+                      </span>
+                      <span className="text-[10px] text-neutral-400 ml-1">
+                        ({t(lang, 'monthly')}: {formatFullCurrency(c.monthlyDue, currency)})
+                      </span>
                     </div>
-                  )}
 
-                  {/* Financial Stats: Monthly Due, Completed, Balance Due */}
-                  <div className="grid grid-cols-3 gap-2 bg-white dark:bg-neutral-800/70 p-2 rounded-xl border border-black/5 dark:border-white/5 text-center text-xs">
-                    <div>
-                      <span className="text-[10px] text-neutral-400 uppercase font-semibold block">Monthly</span>
-                      <span className="font-bold text-neutral-900 dark:text-neutral-100">{formatFullCurrency(c.monthlyDue, currency)}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-neutral-400 uppercase font-semibold block">Completed</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatFullCurrency(c.totalPaid, currency)}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-rose-400 uppercase font-semibold block">Balance</span>
-                      <span className="font-bold text-rose-600 dark:text-rose-400">{formatFullCurrency(c.balanceDue, currency)}</span>
+                    <div className="text-right min-w-0">
+                      {lastPayment ? (
+                        <div className="inline-flex items-center gap-1 text-[11px] text-neutral-600 bg-neutral-50 px-2.5 py-1 rounded-full border border-neutral-200/70">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                          <span className="font-semibold text-neutral-900">{formatFullCurrency(lastPayment.amount, currency)}</span>
+                          <span className="text-neutral-400 truncate">• {formatFriendlyDate(lastPayment.date, lastPayment.createdAt)}</span>
+                          <ChevronRight className="w-3 h-3 text-neutral-400 shrink-0" />
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-neutral-400 inline-flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{t(lang, 'noPaymentsYet')}</span>
+                          {customerPayments.length === 0 && <ChevronRight className="w-3 h-3" />}
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {/* Progress Bar & Ending Month */}
+                  {/* Bottom Row: Slim Progress Bar */}
                   <div className="space-y-1">
-                    <div className="w-full bg-neutral-200 dark:bg-neutral-700 h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-[#5A9E2F] h-full rounded-full" style={{ width: `${percent}%` }} />
+                    <div className="w-full bg-neutral-100 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-[#5A9E2F] h-full rounded-full transition-all" style={{ width: `${percent}%` }} />
                     </div>
-                    <div className="flex justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
-                      <span>{percent}% Completed</span>
-                      <span>Ending: <strong>{c.endingMonth}</strong></span>
+                    <div className="flex justify-between text-[10px] text-neutral-500">
+                      <span>{formatFullCurrency(c.totalPaid, currency)} {t(lang, 'completedLabel')} ({percent}%)</span>
+                      <span>{t(lang, 'ending')}: <strong className="text-neutral-700 font-medium">{c.endingMonth}</strong></span>
                     </div>
                   </div>
 

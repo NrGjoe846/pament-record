@@ -12,6 +12,7 @@ export interface Customer {
   startDate: string;      // Start Date
   endingMonth: string;    // Ending Month / completion date
   status?: 'active' | 'completed' | 'defaulter';
+  profileImage?: string;  // Optional compressed base64 profile photo
 }
 
 export interface Payment {
@@ -24,11 +25,14 @@ export interface Payment {
   createdAt: number;
 }
 
+export type AppLanguage = 'en' | 'ta' | 'hi';
+
 export interface AppSettings {
   userName: string;
   targetAmount: number;
   currency: string;
   voiceLang: string;
+  appLang?: AppLanguage;
   theme: 'system' | 'light' | 'dark';
   isPinProtected: boolean; // Password / PIN protection for production
   appPin: string;          // 4-digit security PIN (default '1234')

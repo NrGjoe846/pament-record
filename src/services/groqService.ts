@@ -36,12 +36,17 @@ export async function parseVoiceWithGroq(
 
   try {
     const customerContext = existingCustomerNames.length > 0
-      ? `Existing registered customers in the database: ${existingCustomerNames.join(', ')}. Prefer matching to one of these customers if phonetically similar.`
+      ? `Existing registered customers in the database: ${existingCustomerNames.join(', ')}.`
       : '';
 
     const systemPrompt = `You extract customer cash payment transaction details from user speech.
-The speech can be in Tamil, Tanglish, or English.
+The speech can be in Tamil, Hindi, Tanglish, or English.
 ${customerContext}
+
+Rules:
+- Extract "name" ONLY if a person's name was actually spoken.
+- Do NOT invent a name, do NOT return "Member", and do NOT force-replace a vague name with a random customer if unsure — return the spoken name transliterated to English so the user can pick from matching profiles.
+- If no person's name was spoken (e.g. only an amount like "5" or "5000 cash"), return "" for "name".
 
 Tamil Number Reference:
 - ஒன்று / ஒன்னு = 1, இரண்டு / ரெண்டு = 2, மூன்று / மூணு = 3, நான்கு / நாலு = 4, ஐந்து / அஞ்சு = 5
@@ -50,7 +55,7 @@ Tamil Number Reference:
 - லட்சம் = 100000 (e.g. "ஒரு லட்சம்" = 100000)
 
 Return a strict JSON object with:
-- "name": string (Customer's full name, transliterated to English letters)
+- "name": string (Spoken customer name in English letters, or "" if no name was spoken)
 - "amount": number (The numerical payment amount)
 
 Respond ONLY with valid JSON. No prose.`;
@@ -96,12 +101,15 @@ Respond ONLY with valid JSON. No prose.`;
       return fallbackParseVoiceCommand(transcript);
     }
 
+    const rawName = parsed.name ? String(parsed.name).trim() : '';
+    const cleanName = rawName.toLowerCase() === 'member' ? '' : rawName;
+
     return {
-      name: parsed.name || 'Member',
+      name: cleanName,
       amount: parsedAmount > 0 ? parsedAmount : 0,
       type: 'offline',
       rawTranscript: transcript,
-      confidence: 0.98
+      confidence: cleanName && parsedAmount > 0 ? 0.98 : 0.6
     };
   } catch (err) {
     console.warn('Groq parsing failed or timed out, using offline parser:', err);

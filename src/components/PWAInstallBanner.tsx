@@ -46,41 +46,56 @@ export const PWAInstallBanner: React.FC = () => {
   return (
     <div className="fixed bottom-4 left-4 right-4 z-40 max-w-sm mx-auto animate-in slide-in-from-bottom duration-300">
       {needRefresh ? (
-        <div className="bg-indigo-600 text-white p-3 rounded-2xl shadow-xl flex items-center justify-between border border-white/20">
-          <div className="flex items-center gap-2">
-            <RefreshCw className="w-4 h-4 animate-spin" />
-            <span className="text-xs font-semibold">New update available!</span>
+        <div className="bg-white/95 backdrop-blur-md text-neutral-900 p-3.5 rounded-2xl shadow-lg flex items-center justify-between gap-3 border border-neutral-200/80">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-700 flex items-center justify-center shrink-0">
+              <RefreshCw className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-neutral-900 leading-tight">Update Available</p>
+              <p className="text-[11px] text-neutral-500 truncate">Refresh to load the latest version</p>
+            </div>
           </div>
-          <button
-            onClick={handleReload}
-            className="px-3 py-1 bg-white text-indigo-700 rounded-xl text-xs font-bold shadow-xs hover:bg-neutral-100"
-          >
-            Reload
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={handleReload}
+              className="px-3.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-full text-xs font-semibold transition cursor-pointer"
+            >
+              Reload
+            </button>
+            <button
+              onClick={() => setNeedRefresh(false)}
+              className="w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition cursor-pointer"
+              aria-label="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       ) : showInstall ? (
-        <div className="bg-[#1C1C1E] text-white p-3.5 rounded-2xl shadow-xl flex items-center justify-between border border-white/10">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#D9D4F2] text-[#2A2740] flex items-center justify-center font-bold text-xs">
+        <div className="bg-white/95 backdrop-blur-md text-neutral-900 p-3.5 rounded-2xl shadow-lg flex items-center justify-between gap-3 border border-neutral-200/80">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-full bg-neutral-100 text-neutral-900 flex items-center justify-center font-bold text-sm shrink-0">
               ₹
             </div>
-            <div>
-              <p className="text-xs font-bold leading-tight">Install Payment Tracker</p>
-              <p className="text-[10px] text-neutral-400">Add to home screen for offline access</p>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-neutral-900 leading-tight">Install PayTracker</p>
+              <p className="text-[11px] text-neutral-500 truncate">Add to home screen for quick access</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={handleInstallClick}
-              className="px-3 py-1.5 bg-app-green-accent hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm transition"
+              className="px-3.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-full text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Install</span>
             </button>
             <button
               onClick={() => setShowInstall(false)}
-              className="p-1 rounded-lg text-neutral-400 hover:text-white"
+              className="w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition cursor-pointer"
+              aria-label="Dismiss"
             >
               <X className="w-3.5 h-3.5" />
             </button>

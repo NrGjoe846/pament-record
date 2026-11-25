@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Customer } from '../types';
-import { parseCustomerVoiceWithGroq, isGroqConfigured } from '../services/groqService';
-import { X, UserPlus, Check, Banknote, Calendar, MapPin, Phone, User, Mic, Sparkles, Loader2, Volume2 } from 'lucide-react';
+import { AppLanguage, Customer } from '../types';
+import { parseCustomerVoiceWithGroq } from '../services/groqService';
+import { getLocalDateString, getInitials } from '../utils/formatters';
+import { t } from '../utils/i18n';
+import { X, UserPlus, Check, Banknote, Calendar, MapPin, Phone, User, Mic, Loader2, Globe, Camera, Trash2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface AddCustomerModalProps {
@@ -9,6 +11,7 @@ interface AddCustomerModalProps {
   onClose: () => void;
   onSaveCustomer: (customer: Omit<Customer, 'id'>) => Promise<void> | void;
   currency: string;
+  lang?: AppLanguage;
 }
 
 export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
@@ -16,20 +19,66 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
   onClose,
   onSaveCustomer,
   currency,
+  lang = 'en',
 }) => {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [homeAddress, setHomeAddress] = useState('');
-  const [monthlyDue, setMonthlyDue] = useState('5000');
-  const [totalTarget, setTotalTarget] = useState('100000');
-  const [endingMonth, setEndingMonth] = useState('August 2027');
+  const [monthlyDue, setMonthlyDue] = useState('');
+  const [totalTarget, setTotalTarget] = useState('');
+  const [durationMonths, setDurationMonths] = useState<number | null>(null);
+  const [profileImage, setProfileImage] = useState<string | undefined>(undefined);
+
+  const DURATION_OPTIONS = [
+    { months: 6, label: '6 Months' },
+    { months: 12, label: '1 Year' },
+    { months: 18, label: '18 Months' },
+    { months: 24, label: '2 Years' },
+    { months: 36, label: '3 Years' },
+    { months: 60, label: '5 Years' },
+  ];
+
+  const computedEndingMonth = durationMonths
+    ? (() => {
+        const d = new Date();
+        d.setMonth(d.getMonth() + durationMonths);
+        return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+      })()
+    : '';
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const size = 200;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const minDim = Math.min(img.width, img.height);
+        const sx = (img.width - minDim) / 2;
+        const sy = (img.height - minDim) / 2;
+        ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+        setProfileImage(canvas.toDataURL('image/jpeg', 0.75));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Voice AI State
   const [isRecording, setIsRecording] = useState(false);
   const [isAiTyping, setIsAiTyping] = useState(false);
-  const [speechLanguage, setSpeechLanguage] = useState<'ta-IN' | 'en-IN'>('ta-IN');
+  const [speechLanguage, setSpeechLanguage] = useState<'ta-IN' | 'en-IN' | 'hi-IN'>(
+    lang === 'hi' ? 'hi-IN' : lang === 'ta' ? 'ta-IN' : 'en-IN'
+  );
   const [activeVoiceField, setActiveVoiceField] = useState<'all' | 'name' | 'phone' | 'homeAddress'>('all');
   const [liveTranscript, setLiveTranscript] = useState('');
   const [lastAutoFilled, setLastAutoFilled] = useState<string | null>(null);
@@ -43,26 +92,53 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
 
     if (!SpeechRecognition) return;
 
+    let isCleanedUp = false;
+    let silenceTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const clearSilenceTimer = () => {
+      if (silenceTimer) {
+        clearTimeout(silenceTimer);
+        silenceTimer = undefined;
+      }
+    };
+
     try {
       const recognition = new SpeechRecognition();
-      recognition.continuous = false;
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = speechLanguage;
 
       recognition.onstart = () => {
+        if (isCleanedUp) return;
         setIsRecording(true);
         setError(null);
       };
 
       recognition.onresult = (event: any) => {
+        if (isCleanedUp) return;
         let text = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
+        for (let i = 0; i < event.results.length; i++) {
           text += event.results[i][0].transcript;
         }
         setLiveTranscript(text);
+
+        clearSilenceTimer();
+        if (text.trim()) {
+          silenceTimer = setTimeout(() => {
+            if (!isCleanedUp) {
+              try {
+                recognition.stop();
+              } catch {
+                // ignore
+              }
+            }
+          }, 2200);
+        }
       };
 
       recognition.onerror = (event: any) => {
+        clearSilenceTimer();
+        if (isCleanedUp) return;
         setIsRecording(false);
         if (event.error === 'not-allowed') {
           setError('Microphone permission denied. Please allow microphone in browser.');
@@ -70,7 +146,10 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
       };
 
       recognition.onend = () => {
-        setIsRecording(false);
+        clearSilenceTimer();
+        if (!isCleanedUp) {
+          setIsRecording(false);
+        }
       };
 
       recognitionRef.current = recognition;
@@ -79,6 +158,8 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
     }
 
     return () => {
+      isCleanedUp = true;
+      clearSilenceTimer();
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
@@ -106,9 +187,8 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
         if (parsed.homeAddress) setHomeAddress(parsed.homeAddress);
         if (parsed.monthlyDue) setMonthlyDue(String(parsed.monthlyDue));
         if (parsed.totalTarget) setTotalTarget(String(parsed.totalTarget));
-        if (parsed.endingMonth) setEndingMonth(parsed.endingMonth);
 
-        setLastAutoFilled('✨ AI Auto-Filled from voice speech!');
+        setLastAutoFilled('Filled from voice!');
         setTimeout(() => setLastAutoFilled(null), 4000);
 
         try {
@@ -173,8 +253,8 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
       return;
     }
 
-    const parsedMonthly = parseFloat(monthlyDue) || 5000;
-    const parsedTarget = parseFloat(totalTarget) || 100000;
+    const parsedMonthly = parseFloat(monthlyDue) || 0;
+    const parsedTarget = parseFloat(totalTarget) || 0;
 
     setIsSubmitting(true);
     try {
@@ -186,9 +266,10 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
         totalTarget: parsedTarget,
         totalPaid: 0,
         balanceDue: parsedTarget,
-        startDate: new Date().toISOString().split('T')[0],
-        endingMonth: endingMonth.trim() || 'August 2027',
-        status: 'active'
+        startDate: getLocalDateString(),
+        endingMonth: computedEndingMonth || 'Not specified',
+        status: 'active',
+        profileImage
       });
 
       try {
@@ -201,6 +282,10 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
       setName('');
       setPhone('');
       setHomeAddress('');
+      setMonthlyDue('');
+      setTotalTarget('');
+      setDurationMonths(null);
+      setProfileImage(undefined);
       setError(null);
       onClose();
     } catch (err: any) {
@@ -211,141 +296,180 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="w-full max-w-md bg-white text-neutral-900 rounded-t-4xl sm:rounded-4xl p-5 shadow-2xl border border-black/5 max-h-[94vh] flex flex-col animate-in slide-in-from-bottom duration-250">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-200 overscroll-none">
+      <div className="w-full max-w-md bg-white text-neutral-900 rounded-t-3xl sm:rounded-3xl p-5 shadow-xl border border-neutral-200/80 max-h-[94vh] flex flex-col animate-in slide-in-from-bottom duration-250 overscroll-contain">
         
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-2xl bg-emerald-500/15 text-emerald-600 flex items-center justify-center font-bold">
-              <UserPlus className="w-5 h-5" />
+        <div className="flex items-center justify-between pb-3.5 border-b border-neutral-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-neutral-100 text-neutral-700 flex items-center justify-center">
+              <UserPlus className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold">Register New Customer</h2>
+              <h2 className="text-base font-bold tracking-tight text-neutral-900">{t(lang, 'registerNewCustomer')}</h2>
               <p className="text-[11px] text-neutral-500">
-                Voice Auto-Type for non-educated users
+                {t(lang, 'voiceOrManual')}
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-500 hover:text-neutral-900 cursor-pointer"
+            className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200/80 flex items-center justify-center text-neutral-500 hover:text-neutral-900 transition cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-3 space-y-3.5 text-xs">
-          
-          {/* AI VOICE AUTO-TYPE CARD */}
-          <div className="bg-gradient-to-r from-[#D9D4F2]/50 via-purple-50 to-[#D9D4F2]/40 border border-purple-200/80 rounded-2xl p-3.5 shadow-xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 font-bold text-xs text-purple-900">
-                <Sparkles className="w-4 h-4 text-purple-600" />
-                <span>AI Voice Auto-Type</span>
-              </div>
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-3.5 space-y-3.5 text-xs">
 
-              {/* Language Switch: Tamil vs English */}
-              <div className="flex items-center gap-1 bg-white/90 rounded-lg p-0.5 border border-purple-200 text-[10px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => setSpeechLanguage('ta-IN')}
-                  className={`px-2 py-0.5 rounded-md transition ${
-                    speechLanguage === 'ta-IN'
-                      ? 'bg-[#2A2740] text-white shadow-xs'
-                      : 'text-neutral-600 hover:text-neutral-900'
-                  }`}
-                >
-                  தமிழ் (Tamil)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSpeechLanguage('en-IN')}
-                  className={`px-2 py-0.5 rounded-md transition ${
-                    speechLanguage === 'en-IN'
-                      ? 'bg-[#2A2740] text-white shadow-xs'
-                      : 'text-neutral-600 hover:text-neutral-900'
-                  }`}
-                >
-                  English
-                </button>
+          {/* Customer Profile Photo Picker */}
+          <div className="flex items-center justify-between gap-3 p-3 bg-neutral-50 border border-neutral-200/80 rounded-2xl">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-12 h-12 rounded-full bg-white border border-neutral-200 flex items-center justify-center overflow-hidden shrink-0 text-neutral-500 font-bold text-xs">
+                {profileImage ? (
+                  <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
+                ) : name.trim() ? (
+                  getInitials(name)
+                ) : (
+                  <Camera className="w-5 h-5 text-neutral-400" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-neutral-800 text-xs">{t(lang, 'profilePhoto')}</p>
+                <p className="text-[10px] text-neutral-400 truncate">JPG, PNG</p>
               </div>
             </div>
 
-            {/* Big Mic Button */}
-            <button
-              type="button"
-              onClick={isRecording ? stopVoiceRecord : () => startVoiceRecord('all')}
-              className={`w-full mt-2.5 py-3 px-4 rounded-xl flex items-center justify-center gap-2 font-bold text-xs transition-all shadow-sm cursor-pointer ${
-                isAiTyping
-                  ? 'bg-purple-600 text-white'
-                  : isRecording
-                  ? 'bg-rose-500 text-white animate-pulse'
-                  : 'bg-[#2A2740] hover:bg-[#393452] text-white active:scale-[0.98]'
-              }`}
-            >
-              {isAiTyping ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>AI typing details into fields...</span>
-                </>
-              ) : isRecording ? (
-                <>
-                  <Mic className="w-4 h-4 animate-bounce" />
-                  <span>Listening... Tap when finished speaking</span>
-                </>
-              ) : (
-                <>
-                  <Mic className="w-4 h-4 text-emerald-400" />
-                  <span>🎤 Speak Customer Details to Auto-Fill</span>
-                </>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoChange}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3 py-1.5 rounded-full bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-800 font-semibold text-[11px] flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                <span>{profileImage ? t(lang, 'changePhoto') : t(lang, 'addPhoto')}</span>
+              </button>
+              {profileImage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileImage(undefined);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                  title={t(lang, 'removePhoto')}
+                  className="w-7 h-7 rounded-full bg-white border border-neutral-200 hover:border-rose-300 text-rose-600 flex items-center justify-center transition cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               )}
-            </button>
-
-            {/* Spoken voice feedback */}
-            {liveTranscript ? (
-              <p className="mt-2 text-[11px] text-purple-900 italic bg-white/80 p-2 rounded-lg border border-purple-200 text-center">
-                "{liveTranscript}"
-              </p>
-            ) : (
-              <p className="mt-1.5 text-[10px] text-neutral-500 text-center">
-                Say: "Name, Phone number, Area/Address, Monthly amount" in Tamil or English
-              </p>
-            )}
-
-            {lastAutoFilled && (
-              <p className="mt-1 text-center font-bold text-[11px] text-emerald-700 animate-pulse">
-                {lastAutoFilled}
-              </p>
-            )}
+            </div>
           </div>
 
+          {/* Simple Voice Language Selector */}
+          <div className="flex items-center justify-between py-2 px-3 bg-neutral-50 border border-neutral-200/80 rounded-2xl">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-neutral-600">
+              <Globe className="w-3.5 h-3.5 text-neutral-500" />
+              <span>{t(lang, 'voiceLanguage')}</span>
+            </div>
+
+            <div className="flex items-center gap-0.5 bg-white rounded-full p-0.5 border border-neutral-200 text-[11px] font-semibold">
+              <button
+                type="button"
+                onClick={() => setSpeechLanguage('ta-IN')}
+                className={`px-2.5 py-1 rounded-full transition cursor-pointer ${
+                  speechLanguage === 'ta-IN'
+                    ? 'bg-neutral-900 text-white'
+                    : 'text-neutral-500 hover:text-neutral-900'
+                }`}
+              >
+                தமிழ்
+              </button>
+              <button
+                type="button"
+                onClick={() => setSpeechLanguage('hi-IN')}
+                className={`px-2.5 py-1 rounded-full transition cursor-pointer ${
+                  speechLanguage === 'hi-IN'
+                    ? 'bg-neutral-900 text-white'
+                    : 'text-neutral-500 hover:text-neutral-900'
+                }`}
+              >
+                हिन्दी
+              </button>
+              <button
+                type="button"
+                onClick={() => setSpeechLanguage('en-IN')}
+                className={`px-2.5 py-1 rounded-full transition cursor-pointer ${
+                  speechLanguage === 'en-IN'
+                    ? 'bg-neutral-900 text-white'
+                    : 'text-neutral-500 hover:text-neutral-900'
+                }`}
+              >
+                English
+              </button>
+            </div>
+          </div>
+
+          {liveTranscript && (
+            <div className="text-[11px] text-neutral-700 italic bg-neutral-50 px-3 py-2 rounded-xl border border-neutral-200/80 text-center">
+              "{liveTranscript}"
+            </div>
+          )}
+
+          {lastAutoFilled && (
+            <div className="text-center font-semibold text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded-xl py-1.5">
+              {lastAutoFilled}
+            </div>
+          )}
+
           {error && (
-            <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 text-xs font-semibold">
-              ⚠️ {error}
+            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+              {error}
             </div>
           )}
 
           {/* Customer Name */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="font-bold text-neutral-800">
-                Customer Name *
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="font-semibold text-neutral-700">
+                {t(lang, 'customerNameReq')}
               </label>
               <button
                 type="button"
-                onClick={() => startVoiceRecord('name')}
-                title="Speak Customer Name"
-                className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-100 hover:bg-purple-200 px-2 py-0.5 rounded-md cursor-pointer"
+                onClick={() => (isRecording && activeVoiceField === 'name' ? stopVoiceRecord() : startVoiceRecord('name'))}
+                title={t(lang, 'speakName')}
+                className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition cursor-pointer ${
+                  isRecording && activeVoiceField === 'name'
+                    ? 'bg-rose-500 text-white border-rose-500 animate-pulse'
+                    : isAiTyping && activeVoiceField === 'name'
+                    ? 'bg-neutral-900 text-white border-neutral-900'
+                    : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50'
+                }`}
               >
-                <Mic className="w-3 h-3 text-purple-700" />
-                <span>Speak Name</span>
+                {isAiTyping && activeVoiceField === 'name' ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Mic className="w-3 h-3" />
+                )}
+                <span>
+                  {isRecording && activeVoiceField === 'name'
+                    ? t(lang, 'listeningShort')
+                    : isAiTyping && activeVoiceField === 'name'
+                    ? t(lang, 'fillingShort')
+                    : t(lang, 'speakName')}
+                </span>
               </button>
             </div>
             <div className="relative">
-              <User className="w-4 h-4 absolute left-3 top-3 text-neutral-400" />
+              <User className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" />
               <input
                 type="text"
                 placeholder="e.g. Ramesh Kumar / கார்த்திக்"
@@ -354,29 +478,45 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
                   setName(e.target.value);
                   setError(null);
                 }}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200 font-bold text-xs focus:outline-hidden focus:border-neutral-400"
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-neutral-200 font-medium text-xs text-neutral-900 placeholder:text-neutral-400 focus:outline-hidden focus:border-neutral-900 transition"
               />
             </div>
           </div>
 
           {/* Phone Number */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="font-bold text-neutral-800">
-                Phone Number *
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="font-semibold text-neutral-700">
+                {t(lang, 'phoneNumberReq')}
               </label>
               <button
                 type="button"
-                onClick={() => startVoiceRecord('phone')}
-                title="Speak Phone Number"
-                className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-100 hover:bg-purple-200 px-2 py-0.5 rounded-md cursor-pointer"
+                onClick={() => (isRecording && activeVoiceField === 'phone' ? stopVoiceRecord() : startVoiceRecord('phone'))}
+                title={t(lang, 'speakPhone')}
+                className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition cursor-pointer ${
+                  isRecording && activeVoiceField === 'phone'
+                    ? 'bg-rose-500 text-white border-rose-500 animate-pulse'
+                    : isAiTyping && activeVoiceField === 'phone'
+                    ? 'bg-neutral-900 text-white border-neutral-900'
+                    : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50'
+                }`}
               >
-                <Mic className="w-3 h-3 text-purple-700" />
-                <span>Speak Phone</span>
+                {isAiTyping && activeVoiceField === 'phone' ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Mic className="w-3 h-3" />
+                )}
+                <span>
+                  {isRecording && activeVoiceField === 'phone'
+                    ? t(lang, 'listeningShort')
+                    : isAiTyping && activeVoiceField === 'phone'
+                    ? t(lang, 'fillingShort')
+                    : t(lang, 'speakPhone')}
+                </span>
               </button>
             </div>
             <div className="relative">
-              <Phone className="w-4 h-4 absolute left-3 top-3 text-neutral-400" />
+              <Phone className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" />
               <input
                 type="text"
                 placeholder="e.g. +91 98765 43210"
@@ -385,83 +525,118 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
                   setPhone(e.target.value);
                   setError(null);
                 }}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200 font-bold text-xs focus:outline-hidden focus:border-neutral-400"
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-neutral-200 font-medium text-xs text-neutral-900 placeholder:text-neutral-400 focus:outline-hidden focus:border-neutral-900 transition"
               />
             </div>
           </div>
 
           {/* Home Address / Area */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="font-bold text-neutral-800">
-                Home Address / Area *
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="font-semibold text-neutral-700">
+                {t(lang, 'homeAddressReq')}
               </label>
               <button
                 type="button"
-                onClick={() => startVoiceRecord('homeAddress')}
-                title="Speak Address or Area"
-                className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-100 hover:bg-purple-200 px-2 py-0.5 rounded-md cursor-pointer"
+                onClick={() => (isRecording && activeVoiceField === 'homeAddress' ? stopVoiceRecord() : startVoiceRecord('homeAddress'))}
+                title={t(lang, 'speakArea')}
+                className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition cursor-pointer ${
+                  isRecording && activeVoiceField === 'homeAddress'
+                    ? 'bg-rose-500 text-white border-rose-500 animate-pulse'
+                    : isAiTyping && activeVoiceField === 'homeAddress'
+                    ? 'bg-neutral-900 text-white border-neutral-900'
+                    : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50'
+                }`}
               >
-                <Mic className="w-3 h-3 text-purple-700" />
-                <span>Speak Area</span>
+                {isAiTyping && activeVoiceField === 'homeAddress' ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Mic className="w-3 h-3" />
+                )}
+                <span>
+                  {isRecording && activeVoiceField === 'homeAddress'
+                    ? t(lang, 'listeningShort')
+                    : isAiTyping && activeVoiceField === 'homeAddress'
+                    ? t(lang, 'fillingShort')
+                    : t(lang, 'speakArea')}
+                </span>
               </button>
             </div>
             <div className="relative">
-              <MapPin className="w-4 h-4 absolute left-3 top-3 text-neutral-400" />
+              <MapPin className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" />
               <textarea
                 rows={2}
                 placeholder="Door No, Street Name, Area, City"
                 value={homeAddress}
                 onChange={(e) => setHomeAddress(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200 font-medium text-xs focus:outline-hidden focus:border-neutral-400"
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-neutral-200 font-medium text-xs text-neutral-900 placeholder:text-neutral-400 focus:outline-hidden focus:border-neutral-900 transition"
               />
             </div>
           </div>
 
           {/* Monthly Due & Total Target */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div>
-              <label className="block font-bold text-neutral-800 mb-1">
-                Monthly Due ({currency})
+          <div className="grid grid-cols-2 gap-2.5 items-end">
+            <div className="flex flex-col justify-end">
+              <label className="block font-semibold text-neutral-700 mb-1 leading-tight">
+                {t(lang, 'monthlyDue')} ({currency})
               </label>
               <div className="relative">
-                <Banknote className="w-4 h-4 absolute left-3 top-3 text-neutral-400" />
+                <Banknote className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" />
                 <input
                   type="number"
+                  placeholder="e.g. 5000"
                   value={monthlyDue}
                   onChange={(e) => setMonthlyDue(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200 font-bold text-xs focus:outline-hidden"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-neutral-200 font-semibold text-xs text-neutral-900 placeholder:text-neutral-400 focus:outline-hidden focus:border-neutral-900 transition"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block font-bold text-neutral-800 mb-1">
-                Total Target ({currency})
+            <div className="flex flex-col justify-end">
+              <label className="block font-semibold text-neutral-700 mb-1 leading-tight">
+                {t(lang, 'totalTarget')} ({currency})
               </label>
               <input
                 type="number"
+                placeholder="e.g. 100000"
                 value={totalTarget}
                 onChange={(e) => setTotalTarget(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200 font-bold text-xs focus:outline-hidden"
+                className="w-full px-3 py-2.5 rounded-xl bg-white border border-neutral-200 font-semibold text-xs text-neutral-900 placeholder:text-neutral-400 focus:outline-hidden focus:border-neutral-900 transition"
               />
             </div>
           </div>
 
-          {/* Ending Month */}
+          {/* Completion Timeline / Duration Selector */}
           <div>
-            <label className="block font-bold text-neutral-800 mb-1">
-              Ending Month / Completion Timeline
-            </label>
-            <div className="relative">
-              <Calendar className="w-4 h-4 absolute left-3 top-3 text-neutral-400" />
-              <input
-                type="text"
-                placeholder="e.g. August 2027"
-                value={endingMonth}
-                onChange={(e) => setEndingMonth(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200 font-bold text-xs focus:outline-hidden"
-              />
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="font-semibold text-neutral-700 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-neutral-400" />
+                <span>{t(lang, 'endingTimeline')}</span>
+              </label>
+              {computedEndingMonth && (
+                <span className="text-[11px] font-medium text-emerald-700">
+                  {computedEndingMonth}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {DURATION_OPTIONS.map((opt) => {
+                const isSelected = durationMonths === opt.months;
+                return (
+                  <button
+                    key={opt.months}
+                    type="button"
+                    onClick={() => setDurationMonths(isSelected ? null : opt.months)}
+                    className={`py-2 px-2 rounded-xl border text-[11px] font-semibold transition cursor-pointer ${
+                      isSelected
+                        ? 'bg-neutral-900 border-neutral-900 text-white'
+                        : 'bg-white border-neutral-200 text-neutral-700 hover:border-neutral-400'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -470,10 +645,10 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full h-12 rounded-2xl bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md tap-bounce transition active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+              className="w-full h-11 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 tap-bounce transition active:scale-[0.98] disabled:opacity-50 cursor-pointer"
             >
-              <Check className="w-4 h-4 stroke-[3]" />
-              <span>{isSubmitting ? 'Registering...' : 'Save & Register Customer'}</span>
+              <Check className="w-4 h-4 stroke-[2.5]" />
+              <span>{isSubmitting ? t(lang, 'registering') : t(lang, 'saveRegisterCustomer')}</span>
             </button>
           </div>
 

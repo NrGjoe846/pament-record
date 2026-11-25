@@ -11,6 +11,33 @@ export interface AuthState {
 const OFFLINE_AUTH_KEY = 'payment_tracker_offline_auth';
 
 /**
+ * Signs in with Google OAuth via Supabase.
+ */
+export async function signInWithGoogle(): Promise<{ error: string | null }> {
+  if (!isSupabaseConfigured || !supabase) {
+    return { error: 'Cloud authentication is not configured. Use Offline Mode instead.' };
+  }
+
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+
+    if (error) {
+      return { error: error.message };
+    }
+
+    localStorage.removeItem(OFFLINE_AUTH_KEY);
+    return { error: null };
+  } catch (err: any) {
+    return { error: err?.message || 'Google sign-in failed' };
+  }
+}
+
+/**
  * Signs in with email and password using Supabase backend auth.users table.
  */
 export async function signInWithSupabase(email: string, password: string): Promise<{ user: User | null; error: string | null }> {
@@ -93,6 +120,24 @@ export async function getInitialSession(): Promise<{ session: Session | null; is
     return { session: data?.session || null, isOffline };
   } catch {
     return { session: null, isOffline: true };
+  }
+}
+
+/**
+ * Updates the signed-in user's display name in Supabase auth.users metadata.
+ */
+export async function updateSupabaseUserName(name: string): Promise<void> {
+  if (!isSupabaseConfigured || !supabase || !name.trim()) return;
+  try {
+    const cleanName = name.trim();
+    const { error } = await supabase.auth.updateUser({
+      data: { full_name: cleanName, name: cleanName, display_name: cleanName }
+    });
+    if (error) {
+      console.warn('Supabase display name update warning:', error.message);
+    }
+  } catch (err) {
+    console.warn('Could not update Supabase user display name:', err);
   }
 }
 

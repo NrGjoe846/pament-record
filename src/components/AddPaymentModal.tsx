@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Payment } from '../types';
+import { getLocalDateString } from '../utils/formatters';
 import { ArrowLeft, Delete, ChevronRight, Check, Banknote } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -22,7 +23,7 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [amountStr, setAmountStr] = useState('0');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getLocalDateString());
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +42,7 @@ export const AddPaymentModal: React.FC<AddPaymentModalProps> = ({
       } else {
         setName('');
         setAmountStr('0');
-        setDate(new Date().toISOString().split('T')[0]);
+        setDate(getLocalDateString());
         setNote('');
       }
       setError(null);

@@ -1,5 +1,7 @@
 import React from 'react';
+import { AppLanguage } from '../types';
 import { formatCurrencyParts } from '../utils/formatters';
+import { t } from '../utils/i18n';
 import { ArrowUpRight, CheckCircle2 } from 'lucide-react';
 import { Header } from './Header';
 
@@ -8,6 +10,7 @@ interface SummaryCardProps {
   paidThisMonth: number;
   totalToPay: number;
   currency: string;
+  lang?: AppLanguage;
   onOpenSettings: () => void;
   onOpenAddCustomer: () => void;
   isBackendConnected?: boolean;
@@ -18,6 +21,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
   paidThisMonth,
   totalToPay,
   currency,
+  lang = 'en',
   onOpenSettings,
   onOpenAddCustomer,
   isBackendConnected = false,
@@ -31,9 +35,11 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
   const paidParts = formatCurrencyParts(paidThisMonth, currency);
   const balanceParts = formatCurrencyParts(balance, currency);
   const totalParts = formatCurrencyParts(totalToPay, currency);
+  const locale = lang === 'ta' ? 'ta-IN' : lang === 'hi' ? 'hi-IN' : 'en-IN';
+  const currentMonthLabel = new Date().toLocaleDateString(locale, { month: 'long', year: 'numeric' });
 
   return (
-    <div className="relative w-full bg-[#D9D4F2] text-neutral-900 rounded-b-4xl shadow-sm pt-safe px-5 pb-6 transition-colors duration-300">
+    <div className="relative w-full bg-[#D9D4F2] text-neutral-900 rounded-b-4xl shadow-sm pt-safe px-4 sm:px-5 pb-5 sm:pb-6 transition-colors duration-300">
       
       {/* Top Header / Greeting */}
       <Header
@@ -41,20 +47,21 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
         onOpenSettings={onOpenSettings}
         onOpenAddCustomer={onOpenAddCustomer}
         isBackendConnected={isBackendConnected}
+        lang={lang}
       />
 
       {/* Single Elegant Pill Tag (Matching iOS reference) */}
       <div className="mt-2.5 flex justify-center">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/6 text-neutral-800 text-xs font-semibold backdrop-blur-xs">
           <span className="w-1.5 h-1.5 rounded-full bg-[#5A9E2F]"></span>
-          <span>{currency} Monthly Overview</span>
+          <span>{currentMonthLabel} • {t(lang, 'monthlyOverview')}</span>
         </div>
       </div>
 
       {/* Main Hero Number Section */}
       <div className="mt-3 text-center">
         <p className="text-[11px] uppercase tracking-widest font-bold text-neutral-600">
-          Paid this month
+          {t(lang, 'paidThisMonth')}
         </p>
 
         {/* Hero Number Display */}
@@ -74,25 +81,25 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
         <div className="mt-2 flex justify-center">
           <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#5A9E2F] text-white text-xs font-bold shadow-xs tap-bounce">
             <ArrowUpRight className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>{percentagePaid}% Paid</span>
+            <span>{percentagePaid}% {t(lang, 'paidLabel')}</span>
           </div>
         </div>
       </div>
 
       {/* Secondary Stats Row: Balance & Total to pay */}
-      <div className="mt-5 grid grid-cols-2 gap-3 max-w-sm mx-auto">
+      <div className="mt-5 grid grid-cols-2 gap-2.5 sm:gap-3 max-w-sm mx-auto items-stretch">
         {/* Remaining Balance Card */}
-        <div className="bg-white/70 backdrop-blur-xs rounded-2xl p-3 text-center border border-white/80 shadow-xs">
-          <span className="text-[11px] font-semibold text-neutral-600 block uppercase tracking-wider">
-            Remaining Balance
+        <div className="bg-white/70 backdrop-blur-xs rounded-2xl p-3 text-center border border-white/80 shadow-xs flex flex-col justify-between">
+          <span className="text-[10px] sm:text-[11px] font-semibold text-neutral-600 block uppercase tracking-wider leading-tight">
+            {t(lang, 'remainingBalance')}
           </span>
           {isFullyPaid ? (
-            <div className="flex items-center justify-center gap-1 mt-1 text-emerald-600 font-bold text-xs sm:text-sm">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Fully paid</span>
+            <div className="flex items-center justify-center gap-1 mt-1.5 text-emerald-600 font-bold text-xs sm:text-sm">
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{t(lang, 'fullyPaid')}</span>
             </div>
           ) : (
-            <p className="text-sm sm:text-base font-bold text-neutral-900 mt-0.5">
+            <p className="text-sm sm:text-base font-bold text-neutral-900 mt-1">
               {balanceParts.symbol}{balanceParts.integer}
               <span className="text-xs opacity-60">{balanceParts.decimal}</span>
             </p>
@@ -100,11 +107,11 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({
         </div>
 
         {/* Monthly Target Card */}
-        <div className="bg-white/70 backdrop-blur-xs rounded-2xl p-3 text-center border border-white/80 shadow-xs">
-          <span className="text-[11px] font-semibold text-neutral-600 block uppercase tracking-wider">
-            Monthly Target
+        <div className="bg-white/70 backdrop-blur-xs rounded-2xl p-3 text-center border border-white/80 shadow-xs flex flex-col justify-between">
+          <span className="text-[10px] sm:text-[11px] font-semibold text-neutral-600 block uppercase tracking-wider leading-tight">
+            {t(lang, 'monthlyTarget')}
           </span>
-          <p className="text-sm sm:text-base font-bold text-neutral-900 mt-0.5">
+          <p className="text-sm sm:text-base font-bold text-neutral-900 mt-1">
             {totalParts.symbol}{totalParts.integer}
             <span className="text-xs opacity-60">{totalParts.decimal}</span>
           </p>

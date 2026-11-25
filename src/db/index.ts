@@ -1,5 +1,6 @@
 import Dexie, { Table } from 'dexie';
 import { Payment, Customer, AppSettings } from '../types';
+import { getLocalDateString } from '../utils/formatters';
 
 export class PaymentTrackerDB extends Dexie {
   payments!: Table<Payment, number>;
@@ -24,6 +25,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   targetAmount: 25000,
   currency: '₹',
   voiceLang: 'en-IN',
+  appLang: 'en',
   theme: 'light',
   isPinProtected: true,
   appPin: '1234'
@@ -111,7 +113,7 @@ export async function seedInitialDataIfNeeded() {
       const formatDate = (daysAgo: number) => {
         const d = new Date();
         d.setDate(today.getDate() - daysAgo);
-        return d.toISOString().split('T')[0];
+        return getLocalDateString(d);
       };
 
       const initialPayments: Omit<Payment, 'id'>[] = [
