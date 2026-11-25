@@ -125,11 +125,19 @@ export const App: React.FC = () => {
     });
 
     if (supabase) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'INITIAL_SESSION' && !session && hasOAuthCallback) {
+          return;
+        }
         if (fallbackTimer) clearTimeout(fallbackTimer);
         setIsAuthenticated(Boolean(session));
         setCurrentUserEmail(session?.user?.email || null);
-        if (session) syncGoogleProfileName(session);
+        if (session) {
+          syncGoogleProfileName(session);
+          if (hasOAuthCallback) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
         setIsAuthChecking(false);
       });
 

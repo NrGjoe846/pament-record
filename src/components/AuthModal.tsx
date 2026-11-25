@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { signInWithGoogle } from '../services/authService';
 import { ShieldCheck, AlertCircle, Loader2 } from 'lucide-react';
 
@@ -7,9 +7,22 @@ interface AuthModalProps {
   onAuthenticated: () => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onAuthenticated }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const oauthError =
+      searchParams.get('error_description') ||
+      hashParams.get('error_description') ||
+      searchParams.get('error') ||
+      hashParams.get('error');
+    if (oauthError) {
+      setError(oauthError);
+    }
+  }, []);
 
   if (!isOpen) return null;
 
